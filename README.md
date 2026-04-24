@@ -5,7 +5,7 @@
 [![Python](https://img.shields.io/badge/Python-3.11+-blue?logo=python)](https://python.org)
 [![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
 [![Flask](https://img.shields.io/badge/Flask-3.x-black?logo=flask)](https://flask.palletsprojects.com)
-[![Gemini](https://img.shields.io/badge/LLM-Gemini--2.0--Flash-blue)](https://ai.google.dev)
+[![Gemini](https://img.shields.io/badge/LLM-Gemini--3.1--Flash--Lite--Preview-blue)](https://ai.google.dev)
 [![CloudRun](https://img.shields.io/badge/Deploy-Cloud_Run-4285F4?logo=googlecloud)](https://cloud.google.com/run)
 [![XGBoost](https://img.shields.io/badge/ML-XGBoost-red)](https://xgboost.readthedocs.io)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-4-38BDF8?logo=tailwindcss)](https://tailwindcss.com)
@@ -235,7 +235,7 @@ docker run -p 8080:8080 -e GEMINI_API_KEY=AIza... triageai
 
 | Layer | Technology |
 |---|---|
-| LLM | Gemini 2.0 Flash via `google-generativeai` SDK |
+| LLM | Gemini 3.1 Flash Lite Preview via `google-generativeai` SDK |
 | ML Model | XGBoost (trained on 6,000-row synthetic MTS dataset) |
 | Backend | Python 3.11, Flask 3, Pydantic 2, Gunicorn |
 | Frontend | React 19, Vite 8, Tailwind CSS 4, React Router 7 |
@@ -250,6 +250,6 @@ docker run -p 8080:8080 -e GEMINI_API_KEY=AIza... triageai
 | Variable | Required | Description |
 |---|---|---|
 | `GEMINI_API_KEY` | ✅ Yes | Google Gemini API key |
-| `GEMINI_MODEL` | No | Model name override (default: `gemini-2.0-flash`) |
+| `GEMINI_MODEL` | No | Model name override (default: `gemini-3.1-flash-lite-preview`) |
 | `PORT` | No | Flask/Gunicorn port (default: `8080`) |
 | `FLASK_ENV` | No | Set to `development` for debug mode |
