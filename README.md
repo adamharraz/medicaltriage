@@ -2,12 +2,13 @@
 
 > **AI-powered emergency department triage — Malaysian Triage Scale, multi-agent swarm, real-time nurse dashboard.**
 
-[![Python](https://img.shields.io/badge/Python-3.10+-blue?logo=python)](https://python.org)
-[![React](https://img.shields.io/badge/React-18-61DAFB?logo=react)](https://react.dev)
+[![Python](https://img.shields.io/badge/Python-3.11+-blue?logo=python)](https://python.org)
+[![React](https://img.shields.io/badge/React-19-61DAFB?logo=react)](https://react.dev)
 [![Flask](https://img.shields.io/badge/Flask-3.x-black?logo=flask)](https://flask.palletsprojects.com)
 [![Gemini](https://img.shields.io/badge/LLM-Gemini--2.0--Flash-blue)](https://ai.google.dev)
 [![CloudRun](https://img.shields.io/badge/Deploy-Cloud_Run-4285F4?logo=googlecloud)](https://cloud.google.com/run)
 [![XGBoost](https://img.shields.io/badge/ML-XGBoost-red)](https://xgboost.readthedocs.io)
+[![TailwindCSS](https://img.shields.io/badge/Tailwind_CSS-4-38BDF8?logo=tailwindcss)](https://tailwindcss.com)
 
 ---
 
@@ -71,9 +72,12 @@ Patient Input (vitals + symptoms + visual flags)
 
 ```
 triageai/
-├── start.sh                        ← one command to launch everything
+├── Dockerfile                      ← multi-stage build (Node + Python)
+├── cloudbuild.yaml                 ← Google Cloud Build CI/CD pipeline
+├── deploy.ps1                      ← Windows deployment script (Cloud Run)
+├── deploy.sh                       ← Linux/macOS deployment script
 ├── backend/
-│   ├── server.py                   ← Flask REST API
+│   ├── server.py                   ← Flask REST API + static frontend serving
 │   ├── triage_engine.py            ← XGBoost inference
 │   ├── models.py                   ← Pydantic schemas
 │   ├── generate_training_data.py   ← synthetic training data generator
@@ -86,20 +90,26 @@ triageai/
 │   │   ├── risk_agent.py
 │   │   └── coordinator.py          ← final decision synthesiser
 │   ├── tools/
-│   │   └── gemini_utils.py         ← LLM API + JSON parsing
+│   │   └── gemini_utils.py         ← Gemini API + JSON parsing
 │   └── requirements.txt
-└── frontend/                       ← React + Vite
+└── frontend/                       ← React 19 + Vite 8 + Tailwind CSS 4
     └── src/
+        ├── App.jsx                 ← route definitions
+        ├── api.js                  ← backend API client
+        ├── index.css               ← global styles
         ├── pages/
         │   ├── LandingPage.jsx
         │   ├── KioskPage.jsx           ← patient self-check-in
         │   ├── PatientDisplayPage.jsx  ← patient-facing result screen
         │   └── NurseDashboardPage.jsx  ← live queue + AI reasoning panel
         └── components/
+            ├── ClinicalShell.jsx       ← shared layout shell with navigation
             ├── SwarmPanel.jsx          ← visualises all agent outputs
             ├── VitalsForm.jsx
             ├── SymptomQuestionnaire.jsx
             ├── VisualFlagsForm.jsx
+            ├── BodyMap.jsx             ← pain location selector
+            ├── ExplanationCard.jsx     ← patient-facing explanation display
             └── ZoneBadge.jsx
 ```
 
@@ -109,10 +119,10 @@ triageai/
 
 ### Prerequisites
 
-- Python 3.10+
-- Node.js 18+
+- Python 3.11+
+- Node.js 20+
 - A [Google Gemini API key](https://aistudio.google.com/app/apikey)
-- [Google Cloud SDK (gcloud)](https://cloud.google.com/sdk/docs/install) (for deployment)
+- [Google Cloud SDK (gcloud)](https://cloud.google.com/sdk/docs/install) *(for deployment only)*
 
 ### 1. Clone & configure
 
@@ -128,20 +138,44 @@ export GEMINI_API_KEY=AIza...
 echo "GEMINI_API_KEY=AIza..." > backend/.env
 ```
 
-### 2. (Optional) Train the XGBoost model
+### 2. Run locally
+
+**Backend:**
 
 ```bash
 cd backend
 pip install -r requirements.txt
-python generate_training_data.py
-python train_model.py
+python server.py
+```
+
+**Frontend** (in a separate terminal):
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The frontend dev server proxies `/api` requests to `http://localhost:8080` automatically.
+
+### 3. (Optional) Train the XGBoost model
+
+```bash
+cd backend
+python generate_training_data.py   # creates data/training_data.csv
+python train_model.py              # trains & saves model to model/
 ```
 
 > If skipped, the server falls back to Zone 3 as the ML signal — the AI swarm still runs fully.
 
+---
+
 ## 🚀 Deploy to Google Cloud Run
 
-To deploy the application to Google Cloud Run, execute the deployment script.
+The app ships as a single Docker container — the React frontend is built and served as static files by Flask via Gunicorn.
+
+### Automated deployment
+
 Ensure you have authenticated with `gcloud auth login` and linked a billing account.
 
 ```bash
@@ -152,7 +186,21 @@ Ensure you have authenticated with `gcloud auth login` and linked a billing acco
 ./deploy.sh
 ```
 
-Once deployed, the app will be available at your generated Cloud Run URL.
+### CI/CD via Cloud Build
+
+The `cloudbuild.yaml` pipeline automatically:
+1. Builds the multi-stage Docker image
+2. Pushes to Google Artifact Registry (`asia-southeast1`)
+3. Deploys to Cloud Run with secret injection
+
+Trigger it on push to `main` via [Google Cloud Build Triggers](https://console.cloud.google.com/cloud-build/triggers).
+
+### Docker (manual)
+
+```bash
+docker build -t triageai .
+docker run -p 8080:8080 -e GEMINI_API_KEY=AIza... triageai
+```
 
 ---
 
@@ -160,13 +208,14 @@ Once deployed, the app will be available at your generated Cloud Run URL.
 
 | Method | Endpoint | Description |
 |---|---|---|
+| `GET` | `/api/health` | Service health check |
 | `POST` | `/api/triage` | Submit patient data, run AI swarm |
-| `GET` | `/api/patients` | List all active patients |
+| `GET` | `/api/patients` | List all active waiting patients |
 | `GET` | `/api/patients/<id>` | Get single patient record |
 | `PATCH` | `/api/patients/<id>/override` | Nurse manual zone override |
 | `DELETE` | `/api/patients/<id>` | Discharge patient |
 | `GET` | `/api/queue-stats` | Zone counts + flagged count |
-| `GET` | `/api/demo` | Mock result for UI testing |
+| `GET` | `/api/demo` | Mock result for UI testing (no API calls) |
 
 ---
 
@@ -186,11 +235,13 @@ Once deployed, the app will be available at your generated Cloud Run URL.
 
 | Layer | Technology |
 |---|---|
-| LLM | Gemini 2.0 Flash via Google Generative AI |
-| ML Model | XGBoost (trained on synthetic MTS data) |
-| Backend | Python, Flask, Pydantic |
-| Frontend | React 18, Vite, Tailwind CSS |
+| LLM | Gemini 2.0 Flash via `google-generativeai` SDK |
+| ML Model | XGBoost (trained on 6,000-row synthetic MTS dataset) |
+| Backend | Python 3.11, Flask 3, Pydantic 2, Gunicorn |
+| Frontend | React 19, Vite 8, Tailwind CSS 4, React Router 7 |
 | Agent Framework | Custom multi-agent swarm (no LangChain) |
+| Deployment | Google Cloud Run, Cloud Build, Artifact Registry |
+| Container | Multi-stage Docker (Node 20 + Python 3.11) |
 
 ---
 
@@ -199,5 +250,6 @@ Once deployed, the app will be available at your generated Cloud Run URL.
 | Variable | Required | Description |
 |---|---|---|
 | `GEMINI_API_KEY` | ✅ Yes | Google Gemini API key |
-| `PORT` | No | Flask port (default: `8080`) |
+| `GEMINI_MODEL` | No | Model name override (default: `gemini-2.0-flash`) |
+| `PORT` | No | Flask/Gunicorn port (default: `8080`) |
 | `FLASK_ENV` | No | Set to `development` for debug mode |
